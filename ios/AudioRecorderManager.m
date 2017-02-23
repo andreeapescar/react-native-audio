@@ -7,10 +7,10 @@
 //
 
 #import "AudioRecorderManager.h"
-#import "RCTConvert.h"
-#import "RCTBridge.h"
-#import "RCTUtils.h"
-#import "RCTEventDispatcher.h"
+#import <React/RCTConvert.h>
+#import <React/RCTBridge.h>
+#import <React/RCTUtils.h>
+#import <React/RCTEventDispatcher.h>
 #import <AVFoundation/AVFoundation.h>
 
 NSString *const AudioRecorderEventProgress = @"recordingProgress";
@@ -19,6 +19,7 @@ NSString *const AudioRecorderEventFinished = @"recordingFinished";
 @implementation AudioRecorderManager {
 
   AVAudioRecorder *_audioRecorder;
+  AVAudioPlayer *_audioPlayer;
 
   NSTimeInterval _currentTime;
   id _progressUpdateTimer;
@@ -40,6 +41,8 @@ RCT_EXPORT_MODULE();
 - (void)sendProgressUpdate {
   if (_audioRecorder && _audioRecorder.recording) {
     _currentTime = _audioRecorder.currentTime;
+  } else if (_audioPlayer && _audioPlayer.playing) {
+    _currentTime = _audioPlayer.currentTime;
   } else {
     return;
   }
@@ -163,7 +166,7 @@ RCT_EXPORT_METHOD(prepareRecordingAtPath:(NSString *)path sampleRate:(float)samp
   NSError *error = nil;
 
   _recordSession = [AVAudioSession sharedInstance];
-  [_recordSession setCategory:AVAudioSessionCategoryRecord error:nil];
+  [_recordSession setCategory:AVAudioSessionCategoryPlayAndRecord error:nil];
 
   _audioRecorder = [[AVAudioRecorder alloc]
                 initWithURL:_audioFileURL
@@ -203,6 +206,47 @@ RCT_EXPORT_METHOD(pauseRecording)
   if (_audioRecorder.recording) {
     [self stopProgressTimer];
     [_audioRecorder pause];
+  }
+}
+
+RCT_EXPORT_METHOD(playRecording)
+{
+  if (_audioRecorder.recording) {
+    NSLog(@"stop the recording before playing");
+    return;
+
+  } else {
+
+    NSError *error;
+
+    if (!_audioPlayer.playing) {
+      _audioPlayer = [[AVAudioPlayer alloc]
+        initWithContentsOfURL:_audioRecorder.url
+        error:&error];
+
+      if (error) {
+        [self stopProgressTimer];
+        NSLog(@"audio playback loading error: %@", [error localizedDescription]);
+        // TODO: dispatch error over the bridge
+      } else {
+        [self startProgressTimer];
+        [_audioPlayer play];
+      }
+    }
+  }
+}
+
+RCT_EXPORT_METHOD(pausePlaying)
+{
+  if (_audioPlayer.playing) {
+    [_audioPlayer pause];
+  }
+}
+
+RCT_EXPORT_METHOD(stopPlaying)
+{
+  if (_audioPlayer.playing) {
+    [_audioPlayer stop];
   }
 }
 
